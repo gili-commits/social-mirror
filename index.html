@@ -1,0 +1,1642 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <title>Social Mirror</title>
+
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f0f0f">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="Social Mirror">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Hebrew:wght@400;500;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg: #0f0f0f;
+      --surface: #1a1a1a;
+      --text: #e8e8e8;
+      --text-dim: #888;
+      --border: #2a2a2a;
+      --ctx-red: #c0392b;
+      --ctx-green: #27ae60;
+      --ctx-blue: #2980b9;
+      /* note: stage 3 will add #recording-indicator (pulsing red dot + timer)
+         tied to consent-visible recording. placeholder already in #screen-home. */
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Noto Sans Hebrew', system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    button {
+      font-family: inherit;
+      cursor: pointer;
+      border: none;
+      background: none;
+      color: inherit;
+    }
+
+    input {
+      font-family: inherit;
+    }
+
+    .screen {
+      display: none;
+      padding: 24px 20px;
+      min-height: 100vh;
+    }
+    .screen.active { display: block; }
+
+    .screen h1 {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 20px;
+    }
+
+    .card {
+      background: var(--surface);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+
+    /* settings icon — top-right in RTL (DOM uses "left" because RTL flips) */
+    .settings-icon {
+      position: fixed;
+      top: 16px;
+      left: 16px;
+      color: #444;
+      font-size: 24px;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 5;
+    }
+    .settings-icon:hover { color: #666; }
+
+    /* back button */
+    .back-btn {
+      color: var(--text-dim);
+      font-size: 15px;
+      margin-bottom: 16px;
+      padding: 6px 0;
+    }
+
+    /* home screen layout */
+    #screen-home {
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+    #screen-home.active { display: flex; }
+
+    .context-buttons {
+      display: flex;
+      gap: 20px;
+      justify-content: center;
+      align-items: flex-start;
+    }
+
+    .ctx-btn-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .ctx-btn {
+      width: 130px;
+      height: 130px;
+      border-radius: 50%;
+      transition: transform 0.1s;
+    }
+    .ctx-btn:active { transform: scale(0.95); }
+
+    #btn-red   { background: var(--ctx-red); }
+    #btn-green { background: var(--ctx-green); }
+    #btn-blue  { background: var(--ctx-blue); }
+
+    .ctx-label {
+      font-size: 13px;
+      color: var(--text-dim);
+    }
+
+    /* consent-visible recording indicator (stage 3) */
+    #recording-indicator[hidden] { display: none; }
+    #recording-indicator {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+    .rec-dot {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #ff2d2d;
+      box-shadow: 0 0 0 0 rgba(255, 45, 45, 0.7);
+      animation: rec-pulse 1.2s ease-out infinite;
+    }
+    @keyframes rec-pulse {
+      0%   { box-shadow: 0 0 0 0 rgba(255, 45, 45, 0.7); }
+      70%  { box-shadow: 0 0 0 18px rgba(255, 45, 45, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(255, 45, 45, 0); }
+    }
+    .rec-label {
+      font-size: 13px;
+      color: #ff6a6a;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    .rec-timer {
+      font-size: 32px;
+      font-weight: 500;
+      font-variant-numeric: tabular-nums;
+      color: var(--text);
+    }
+
+    /* subtle red border around viewport while recording — so onlookers also see */
+    body.recording::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      border: 3px solid #ff2d2d;
+      pointer-events: none;
+      z-index: 1000;
+      animation: border-pulse 1.6s ease-in-out infinite;
+    }
+    @keyframes border-pulse {
+      0%, 100% { opacity: 0.45; }
+      50%      { opacity: 1; }
+    }
+
+    /* hide context buttons while recording */
+    body.recording .context-buttons { display: none; }
+
+    /* hide settings icon on processing screen — no back-nav during processing */
+    body.processing .settings-icon { visibility: hidden; }
+
+    /* settings screen */
+    #screen-settings .field {
+      margin-bottom: 16px;
+    }
+    #screen-settings label {
+      display: block;
+      font-size: 14px;
+      color: var(--text-dim);
+      margin-bottom: 6px;
+    }
+    #screen-settings input[type="password"] {
+      width: 100%;
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 15px;
+    }
+    .primary-btn {
+      width: 100%;
+      background: var(--text);
+      color: var(--bg);
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 500;
+    }
+    .hint {
+      color: var(--text-dim);
+      font-size: 13px;
+      margin-top: 12px;
+    }
+    .save-status {
+      font-size: 13px;
+      margin-top: 10px;
+      min-height: 18px;
+    }
+    .save-status[data-tone="ok"]  { color: var(--ctx-green); }
+    .save-status[data-tone="err"] { color: var(--ctx-red); }
+
+    /* processing screen */
+    #screen-processing {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      min-height: 100vh;
+    }
+    #screen-processing.active { display: flex; }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--border);
+      border-top-color: var(--text);
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* results screen */
+    #screen-results {
+      padding-bottom: 80px; /* room for actions */
+    }
+    #screen-results .result-section {
+      margin-bottom: 20px;
+    }
+    #screen-results h2 {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-dim);
+      margin-bottom: 8px;
+      letter-spacing: 0.3px;
+    }
+    #screen-results .card {
+      line-height: 1.55;
+      font-size: 15px;
+    }
+
+    /* results header */
+    .results-meta {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+      color: var(--text-dim);
+      font-size: 13px;
+    }
+    .results-meta .ctx-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .ctx-dot.ctx-red   { background: var(--ctx-red); }
+    .ctx-dot.ctx-green { background: var(--ctx-green); }
+    .ctx-dot.ctx-blue  { background: var(--ctx-blue); }
+
+    .mode-badge {
+      display: inline-block;
+      font-size: 11px;
+      color: var(--text-dim);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 2px 6px;
+      margin-inline-start: 4px;
+    }
+    .mode-badge[hidden] { display: none; }
+
+    /* distortion card — border-right (RTL "start") colored per context */
+    .distortion-card {
+      background: var(--surface);
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin-bottom: 10px;
+      border-inline-start: 3px solid var(--text-dim);
+    }
+    body .distortion-card.ctx-red   { border-inline-start-color: var(--ctx-red); }
+    body .distortion-card.ctx-green { border-inline-start-color: var(--ctx-green); }
+    body .distortion-card.ctx-blue  { border-inline-start-color: var(--ctx-blue); }
+
+    .distortion-name {
+      font-size: 15px;
+      font-weight: 500;
+      margin-bottom: 6px;
+    }
+    .distortion-quote {
+      font-size: 14px;
+      color: #b8b8b8;
+      margin-bottom: 8px;
+      padding-inline-start: 10px;
+      border-inline-start: 2px solid var(--border);
+      font-style: italic;
+      line-height: 1.5;
+    }
+    .distortion-explanation {
+      font-size: 14px;
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    /* observations list */
+    .obs-list {
+      list-style: none;
+      padding: 0;
+    }
+    .obs-list li {
+      background: var(--surface);
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 8px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .obs-list li::before {
+      content: '•';
+      color: var(--text-dim);
+      margin-inline-end: 8px;
+    }
+
+    .empty-note {
+      color: var(--text-dim);
+      font-size: 14px;
+      font-style: italic;
+    }
+
+    .result-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 24px;
+    }
+    .result-actions button { flex: 1; }
+    .secondary-btn {
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 15px;
+    }
+    .secondary-btn[disabled] {
+      opacity: 0.5;
+      cursor: default;
+    }
+
+    /* history screen */
+    #history-list {
+      list-style: none;
+    }
+    #history-list:empty::after {
+      content: 'אין ניתוחים שמורים';
+      display: block;
+      text-align: center;
+      color: var(--text-dim);
+      padding: 40px 0;
+      font-size: 14px;
+    }
+    .history-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--surface);
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 8px;
+    }
+    .history-main {
+      flex: 1;
+      min-width: 0;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .history-date {
+      font-size: 15px;
+      color: var(--text);
+    }
+    .history-meta {
+      font-size: 13px;
+      color: var(--text-dim);
+      margin-top: 2px;
+    }
+    .history-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .history-delete {
+      color: var(--text-dim);
+      font-size: 20px;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .history-delete:hover { color: var(--ctx-red); background: rgba(192, 57, 43, 0.1); }
+
+    /* bottom sheet menu */
+    #menu-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s;
+      z-index: 10;
+    }
+    #menu-sheet.open ~ #menu-backdrop,
+    #menu-sheet.open + #menu-backdrop {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    #menu-sheet {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--surface);
+      border-radius: 16px 16px 0 0;
+      padding: 20px 16px 28px;
+      transform: translateY(100%);
+      transition: transform 0.25s;
+      z-index: 11;
+    }
+    #menu-sheet.open { transform: translateY(0); }
+
+    .menu-item {
+      display: block;
+      width: 100%;
+      text-align: right;
+      padding: 14px 12px;
+      font-size: 16px;
+      border-radius: 8px;
+    }
+    .menu-item:hover { background: rgba(255, 255, 255, 0.04); }
+    .menu-item.danger { color: var(--ctx-red); font-weight: 500; }
+    .menu-item[hidden] { display: none; }
+
+    /* upload context picker — shares menu-sheet positioning */
+    #upload-sheet {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--surface);
+      border-radius: 16px 16px 0 0;
+      padding: 22px 20px 28px;
+      transform: translateY(100%);
+      transition: transform 0.25s;
+      z-index: 11;
+    }
+    #upload-sheet.open { transform: translateY(0); }
+    .sheet-title {
+      font-size: 16px;
+      font-weight: 500;
+      margin-bottom: 4px;
+    }
+    .sheet-filename {
+      font-size: 13px;
+      color: var(--text-dim);
+      margin-bottom: 18px;
+      word-break: break-all;
+    }
+    .upload-ctx-row {
+      display: flex;
+      gap: 18px;
+      justify-content: center;
+      margin-bottom: 8px;
+    }
+    .ctx-btn-small {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      border: none;
+      transition: transform 0.1s;
+    }
+    .ctx-btn-small:active { transform: scale(0.93); }
+    .upload-ctx-labels {
+      display: flex;
+      gap: 18px;
+      justify-content: center;
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-bottom: 16px;
+    }
+    .upload-ctx-labels span {
+      width: 64px;
+      text-align: center;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- SCREEN 1: HOME (default) -->
+  <section id="screen-home" class="screen active">
+    <button id="btn-settings-icon" class="settings-icon" aria-label="הגדרות">⚙</button>
+
+    <div id="recording-indicator" hidden aria-live="polite">
+      <div class="rec-dot" aria-hidden="true"></div>
+      <div class="rec-label">מקליט</div>
+      <div class="rec-timer" id="rec-timer">00:00</div>
+    </div>
+
+    <div class="context-buttons">
+      <div class="ctx-btn-wrap">
+        <button id="btn-red" class="ctx-btn" aria-label="הקלטה — זר"></button>
+        <span class="ctx-label">זר</span>
+      </div>
+      <div class="ctx-btn-wrap">
+        <button id="btn-green" class="ctx-btn" aria-label="הקלטה — מוכר"></button>
+        <span class="ctx-label">מוכר</span>
+      </div>
+      <div class="ctx-btn-wrap">
+        <button id="btn-blue" class="ctx-btn" aria-label="הקלטה — משפחה"></button>
+        <span class="ctx-label">משפחה</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- SCREEN 2: SETTINGS -->
+  <section id="screen-settings" class="screen">
+    <button class="back-btn" data-back>← חזרה</button>
+    <h1>הגדרות</h1>
+
+    <div class="card">
+      <div class="field">
+        <label for="api-key">מפתח OpenAI API</label>
+        <input type="password" id="api-key" placeholder="sk-..." autocomplete="off">
+      </div>
+      <button id="btn-save-key" class="primary-btn">שמור</button>
+      <p id="save-status" class="save-status"></p>
+      <p class="hint">המפתח נשמר רק על המכשיר שלך.</p>
+    </div>
+  </section>
+
+  <!-- SCREEN 3: PROCESSING -->
+  <section id="screen-processing" class="screen">
+    <div class="spinner"></div>
+    <p id="processing-status">מעבד...</p>
+  </section>
+
+  <!-- SCREEN 4: RESULTS -->
+  <section id="screen-results" class="screen">
+    <h1>תוצאות</h1>
+    <div class="results-meta">
+      <span id="result-ctx-dot" class="ctx-dot" aria-hidden="true"></span>
+      <span id="result-ctx-label"></span>
+      <span aria-hidden="true">·</span>
+      <span id="result-date"></span>
+      <span id="result-mode-badge" class="mode-badge" hidden>תמלול</span>
+    </div>
+
+    <div class="result-section">
+      <h2>סיכום</h2>
+      <div class="card" id="result-summary"></div>
+    </div>
+
+    <div class="result-section">
+      <h2>תצפית על הטון</h2>
+      <div class="card" id="result-tone"></div>
+    </div>
+
+    <div class="result-section">
+      <h2>עיוותים קוגניטיביים שזוהו</h2>
+      <div id="result-distortions"></div>
+    </div>
+
+    <div class="result-section">
+      <h2>תמונת מציאות</h2>
+      <div class="card" id="result-reality"></div>
+    </div>
+
+    <div class="result-section">
+      <h2>נקודות לתשומת לב</h2>
+      <div id="result-observations"></div>
+    </div>
+
+    <div class="result-actions">
+      <button id="btn-save-result" class="secondary-btn">שמור</button>
+      <button id="btn-new-recording" class="primary-btn">הקלטה חדשה</button>
+    </div>
+  </section>
+
+  <!-- SCREEN 5: HISTORY -->
+  <section id="screen-history" class="screen">
+    <button class="back-btn" data-back>← חזרה</button>
+    <h1>היסטוריה</h1>
+    <ul id="history-list"></ul>
+  </section>
+
+  <!-- BOTTOM SHEET MENU -->
+  <div id="menu-sheet">
+    <button id="menu-upload" class="menu-item">העלה הקלטה</button>
+    <button id="menu-settings" class="menu-item">הגדרות</button>
+    <button id="menu-history" class="menu-item">היסטוריה</button>
+    <button id="menu-stop" class="menu-item danger" hidden>סיים הקלטה</button>
+  </div>
+
+  <!-- BOTTOM SHEET — context picker for uploads -->
+  <div id="upload-sheet">
+    <div class="sheet-title">בחר סוג אינטראקציה</div>
+    <div class="sheet-filename" id="upload-filename"></div>
+    <div class="upload-ctx-row">
+      <button class="ctx-btn-small" data-upload-ctx="red" aria-label="זר" style="background:var(--ctx-red)"></button>
+      <button class="ctx-btn-small" data-upload-ctx="green" aria-label="מוכר" style="background:var(--ctx-green)"></button>
+      <button class="ctx-btn-small" data-upload-ctx="blue" aria-label="משפחה" style="background:var(--ctx-blue)"></button>
+    </div>
+    <div class="upload-ctx-labels">
+      <span>זר</span>
+      <span>מוכר</span>
+      <span>משפחה</span>
+    </div>
+    <button id="upload-cancel" class="menu-item">ביטול</button>
+  </div>
+
+  <div id="menu-backdrop"></div>
+
+  <input type="file" id="file-input" accept="audio/*,.m4a,.mp3,.wav,.ogg,.opus,.webm,.3gp,.aac" hidden>
+
+  <script>
+    // register service worker
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').catch(console.error);
+    }
+
+    // --- storage keys ---
+    const LS_API_KEY  = 'sm_api_key';
+    const LS_ANALYSES = 'sm_analyses';
+
+    // --- api key helpers ---
+    function getApiKey() {
+      return localStorage.getItem(LS_API_KEY) || '';
+    }
+    function setApiKey(value) {
+      const trimmed = (value || '').trim();
+      if (trimmed) {
+        localStorage.setItem(LS_API_KEY, trimmed);
+      } else {
+        localStorage.removeItem(LS_API_KEY);
+      }
+    }
+
+    // --- analyses storage ---
+    function getAnalyses() {
+      try {
+        const raw = localStorage.getItem(LS_ANALYSES);
+        const arr = raw ? JSON.parse(raw) : [];
+        return Array.isArray(arr) ? arr : [];
+      } catch (_) {
+        return [];
+      }
+    }
+    function setAnalyses(arr) {
+      try {
+        localStorage.setItem(LS_ANALYSES, JSON.stringify(arr));
+        return true;
+      } catch (e) {
+        console.error('setAnalyses failed', e);
+        return false;
+      }
+    }
+    function saveAnalysis(item) {
+      const arr = getAnalyses();
+      const filtered = arr.filter(x => x.id !== item.id);
+      filtered.unshift(item); // newest first
+      return setAnalyses(filtered);
+    }
+    function deleteAnalysis(id) {
+      return setAnalyses(getAnalyses().filter(x => x.id !== id));
+    }
+
+    // screen navigation
+    function navigate(screenId) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById('screen-' + screenId).classList.add('active');
+      document.body.classList.toggle('processing', screenId === 'processing');
+      closeMenu();
+      if (screenId === 'settings') loadSettings();
+      if (screenId === 'history')  renderHistory();
+      if (screenId === 'results')  window.scrollTo({ top: 0, behavior: 'instant' });
+    }
+
+    // load settings into the form when entering the screen
+    function loadSettings() {
+      const key = getApiKey();
+      document.getElementById('api-key').value = key;
+      setSaveStatus(key ? 'מפתח שמור.' : '', key ? 'ok' : '');
+    }
+
+    function setSaveStatus(text, tone) {
+      const el = document.getElementById('save-status');
+      el.textContent = text;
+      el.dataset.tone = tone || '';
+    }
+
+    // bottom sheet menu
+    const menu = document.getElementById('menu-sheet');
+    const backdrop = document.getElementById('menu-backdrop');
+    function openMenu() {
+      menu.classList.add('open');
+      backdrop.style.opacity = '1';
+      backdrop.style.pointerEvents = 'auto';
+    }
+    function closeMenu() {
+      menu.classList.remove('open');
+      backdrop.style.opacity = '0';
+      backdrop.style.pointerEvents = 'none';
+    }
+
+    document.getElementById('btn-settings-icon').addEventListener('click', openMenu);
+    backdrop.addEventListener('click', closeMenu);
+
+    document.getElementById('menu-settings').addEventListener('click', () => navigate('settings'));
+    document.getElementById('menu-history').addEventListener('click', () => navigate('history'));
+
+    // back buttons
+    document.querySelectorAll('[data-back]').forEach(btn => {
+      btn.addEventListener('click', () => navigate('home'));
+    });
+
+    // results: "new recording" goes home
+    document.getElementById('btn-new-recording').addEventListener('click', () => navigate('home'));
+
+    // results: save
+    document.getElementById('btn-save-result').addEventListener('click', () => {
+      if (!latestAnalysis) return;
+      const ok = saveAnalysis(latestAnalysis);
+      const btn = document.getElementById('btn-save-result');
+      if (ok) {
+        btn.disabled = true;
+        btn.textContent = 'נשמר';
+      } else {
+        alert('שגיאה בשמירה — ייתכן שאין מקום פנוי');
+      }
+    });
+
+    // save API key
+    document.getElementById('btn-save-key').addEventListener('click', () => {
+      const input = document.getElementById('api-key');
+      const value = input.value.trim();
+
+      if (!value) {
+        setApiKey('');
+        setSaveStatus('המפתח נמחק.', 'ok');
+        return;
+      }
+
+      if (!value.startsWith('sk-')) {
+        setSaveStatus('מפתח OpenAI תקין מתחיל ב-sk-', 'err');
+        return;
+      }
+
+      setApiKey(value);
+      setSaveStatus('נשמר.', 'ok');
+    });
+
+    // --- recording state ---
+    const MAX_RECORDING_MS = 10 * 60 * 1000; // 10 minutes per spec
+    let mediaRecorder = null;
+    let mediaStream = null;
+    let recordChunks = [];
+    let recordStartTs = 0;
+    let recordDurationMs = 0; // captured on stop
+    let recordTimerInt = null;
+    let recordMaxTimeout = null;
+    let activeContext = null;
+    let wakeLock = null;
+
+    async function acquireWakeLock() {
+      try {
+        if ('wakeLock' in navigator) {
+          wakeLock = await navigator.wakeLock.request('screen');
+        }
+      } catch (_) { /* non-fatal */ }
+    }
+    async function releaseWakeLock() {
+      try { if (wakeLock) { await wakeLock.release(); } } catch (_) {}
+      wakeLock = null;
+    }
+
+    function isRecording() {
+      return mediaRecorder && mediaRecorder.state === 'recording';
+    }
+
+    function vibrate(ms) {
+      try { navigator.vibrate && navigator.vibrate(ms); } catch (_) {}
+    }
+
+    function fmtTime(ms) {
+      const total = Math.floor(ms / 1000);
+      const m = String(Math.floor(total / 60)).padStart(2, '0');
+      const s = String(total % 60).padStart(2, '0');
+      return m + ':' + s;
+    }
+
+    function updateTimer() {
+      const elapsed = Date.now() - recordStartTs;
+      document.getElementById('rec-timer').textContent = fmtTime(elapsed);
+    }
+
+    async function startRecording(color) {
+      if (isRecording()) return;
+
+      if (!getApiKey()) {
+        alert('יש להזין מפתח OpenAI בהגדרות');
+        navigate('settings');
+        return;
+      }
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        alert('הדפדפן לא תומך בהקלטה');
+        return;
+      }
+
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (err) {
+        console.error(err);
+        alert('נדרשת הרשאת מיקרופון. יש לאפשר בהגדרות הדפדפן');
+        return;
+      }
+
+      let rec;
+      try {
+        rec = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      } catch (err) {
+        // fallback without explicit mimeType
+        try {
+          rec = new MediaRecorder(stream);
+        } catch (err2) {
+          stream.getTracks().forEach(t => t.stop());
+          alert('הדפדפן לא תומך בהקלטת אודיו');
+          return;
+        }
+      }
+
+      recordChunks = [];
+      rec.ondataavailable = e => { if (e.data && e.data.size > 0) recordChunks.push(e.data); };
+      rec.onstop = () => {
+        const type = rec.mimeType || 'audio/webm';
+        const blob = new Blob(recordChunks, { type });
+        recordChunks = [];
+        processRecording(blob, activeContext);
+      };
+      rec.onerror = e => {
+        console.error('MediaRecorder error', e);
+        cleanupRecording();
+        alert('שגיאה בהקלטה');
+      };
+
+      mediaRecorder = rec;
+      mediaStream = stream;
+      activeContext = color;
+      recordStartTs = Date.now();
+
+      rec.start();
+      vibrate(50);
+      acquireWakeLock();
+
+      document.body.classList.add('recording');
+      document.getElementById('recording-indicator').hidden = false;
+      document.getElementById('menu-stop').hidden = false;
+
+      updateTimer();
+      recordTimerInt = setInterval(updateTimer, 250);
+      recordMaxTimeout = setTimeout(() => {
+        if (isRecording()) stopRecording();
+      }, MAX_RECORDING_MS);
+    }
+
+    function stopRecording() {
+      if (!isRecording()) return;
+      recordDurationMs = Date.now() - recordStartTs;
+      vibrate(50);
+      try { mediaRecorder.stop(); } catch (_) {}
+      cleanupRecording();
+      setProcessingStatus('מעבד...');
+      navigate('processing');
+    }
+
+    function cleanupRecording() {
+      clearInterval(recordTimerInt);
+      recordTimerInt = null;
+      clearTimeout(recordMaxTimeout);
+      recordMaxTimeout = null;
+
+      if (mediaStream) {
+        mediaStream.getTracks().forEach(t => t.stop());
+        mediaStream = null;
+      }
+
+      releaseWakeLock();
+
+      document.body.classList.remove('recording');
+      document.getElementById('recording-indicator').hidden = true;
+      document.getElementById('menu-stop').hidden = true;
+    }
+
+    function setProcessingStatus(text) {
+      const el = document.getElementById('processing-status');
+      if (el) el.textContent = text;
+    }
+
+    // --- analysis config (stage 5) ---
+    const MAX_UPLOAD_BYTES = 25 * 1024 * 1024; // 25MB — OpenAI limit
+    const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
+    const OPENAI_TRANSCRIBE_URL = 'https://api.openai.com/v1/audio/transcriptions';
+    const OPENAI_MODEL = 'gpt-4o-audio-preview';
+    const OPENAI_TEXT_MODEL = 'gpt-4o-mini';     // fallback analysis
+    const OPENAI_WHISPER_MODEL = 'whisper-1';    // fallback transcription
+
+    const CONTEXT_LABELS = {
+      red:   'זר / אינטראקציה רנדומלית (חנות, שירות, מישהו שאינו מוכר)',
+      green: 'חבר / אדם מוכר',
+      blue:  'בן משפחה — ילד, בת זוג, קרוב משפחה'
+    };
+
+    function buildSystemPrompt(contextDescription) {
+      return `אתה מטפל קוגניטיבי-התנהגותי (CBT) מנוסה שמקשיב לאינטראקציה חברתית אמיתית שחווה המשתמש.
+סוג האינטראקציה: ${contextDescription}.
+המשתמש נוטה לביקורת עצמית קשה ולחרדה חברתית, ורוצה להבין אם הביקורת העצמית שהוא יחווה לאחר השיחה מוצדקת.
+התאם את הניתוח לסוג הקשר — ציפיות מאדם זר שונות מציפיות מבן משפחה.
+
+אתה שומע את ההקלטה במלואה — לא רק את המילים, אלא גם את הטון, הקצב, העוצמה, השתיקות, ואת ההבדלה בין הדוברים. כל אלה חלק מהניתוח שלך.
+
+**המשימה שלך:**
+1. לזהות מי המשתמש בשיחה (הדובר שמקליט את עצמו).
+2. לנתח את **ההתנהגות שלו בפועל** בשיחה — איך דיבר, איך הגיב, מה אמר, מה לא אמר.
+3. לזהות עיוותים קוגניטיביים שעלולים להופיע בפרשנות שלו לשיחה (בהתבסס על מה שקרה בפועל).
+4. להעמיד תמונת מציאות עובדתית — מה באמת קרה, מה הצד השני באמת העביר (בטון, במילים, בתגובות).
+5. לדבר בשפה לא שיפוטית, לא מטיפה, לא מעודדת-יתר. עובדתית ומדויקת.
+
+**עיוותים קוגניטיביים נפוצים לזהות:**
+- קריאת מחשבות (הנחה שיודעים מה אחרים חושבים)
+- הכללת יתר (מאירוע אחד → מסקנה כללית)
+- קטסטרופיזציה (הגזמה בחומרת תוצאות)
+- פילטר מנטלי (התמקדות רק בשלילי)
+- פסילה עצמית של החיובי (ביטול הצלחות)
+- הסקה שרירותית (מסקנות ללא ראיות)
+- הפרסונליזציה (לקיחת אחריות על דברים שאינם בשליטתי)
+- חשיבה דיכוטומית (הכול-או-כלום)
+- "צריך" ו"חייב" (ציפיות נוקשות מעצמי)
+- הגדלה/הקטנה (גודל לא פרופורציונלי לאירועים)
+
+**חשוב במיוחד — הטון:**
+התייחס במפורש לטון של המשתמש בשיחה. האם נשמע לחוץ? רגוע? נחמד? חד? חם? מרוחק? פולשני? מתנצל יתר על המידה? האם הטון שלו התאים למה שאמר? איך הצד השני הגיב לטון הזה — האם נראה פגוע, רגוע, נהנה, משועמם?
+
+ענה בפורמט JSON בדיוק כך:
+{
+  "summary": "תיאור קצר ועובדתי של מה שקרה בשיחה (2-3 משפטים)",
+  "tone_analysis": "תיאור הטון, הקצב, העוצמה, השתיקות של המשתמש — ואיך הצד השני הגיב לזה",
+  "distortions": [
+    {
+      "name": "שם העיוות",
+      "quote": "ציטוט או רגע ספציפי בשיחה שממחיש את העיוות",
+      "explanation": "הסבר קצר מה העיוות כאן"
+    }
+  ],
+  "reality_check": "מה שבאמת קרה בשיחה, בלי הפילטר הביקורתי. עובדות בלבד — מילים, טון, תגובות.",
+  "observations": [
+    "נקודת תשומת לב ראשונה — ניסוח לא שיפוטי",
+    "נקודת תשומת לב שנייה"
+  ]
+}
+
+אם לא נמצאו עיוותים או נקודות לתשומת לב — זה לגיטימי לחלוטין. אמור זאת בבהירות.`;
+    }
+
+    async function analyze(wavBlob, contextColor, apiKey) {
+      const contextDescription = CONTEXT_LABELS[contextColor] || contextColor;
+      const audioBase64 = await blobToBase64(wavBlob);
+
+      // note: gpt-4o-audio-preview does NOT support response_format=json_object.
+      // the prompt already instructs strict JSON output; we parse it tolerantly below.
+      const body = {
+        model: OPENAI_MODEL,
+        modalities: ['text'],
+        messages: [
+          { role: 'system', content: buildSystemPrompt(contextDescription) },
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: 'הנה ההקלטה של האינטראקציה. תנתח אותה לפי ההנחיות. החזר JSON בלבד, בלי טקסט נוסף לפני או אחרי.' },
+              { type: 'input_audio', input_audio: { data: audioBase64, format: 'wav' } }
+            ]
+          }
+        ],
+        max_tokens: 2000
+      };
+
+      const res = await fetch(OPENAI_URL, {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + apiKey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(body)
+      });
+
+      let data;
+      try { data = await res.json(); } catch (_) { data = null; }
+
+      if (!res.ok) {
+        const err = new Error((data && data.error && data.error.message) || ('HTTP ' + res.status));
+        err.status = res.status;
+        err.code = data && data.error && data.error.code;
+        err.type = data && data.error && data.error.type;
+        throw err;
+      }
+
+      const content = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+      if (!content) throw new Error('תשובה ריקה מה-API');
+
+      return parseJsonFlexible(content);
+    }
+
+    // tolerant JSON parser — handles raw JSON, ```json fenced blocks, and
+    // JSON surrounded by prose/explanation text.
+    function parseJsonFlexible(raw) {
+      if (raw == null) throw new Error('תשובה ריקה');
+      if (typeof raw !== 'string') return raw;
+
+      const tryParse = (s) => { try { return JSON.parse(s); } catch (_) { return undefined; } };
+
+      const direct = tryParse(raw.trim());
+      if (direct !== undefined) return direct;
+
+      // strip ```json ... ``` or ``` ... ``` fences
+      const fence = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
+      if (fence) {
+        const inside = tryParse(fence[1].trim());
+        if (inside !== undefined) return inside;
+      }
+
+      // grab from first { to last } — handles prose around the JSON
+      const first = raw.indexOf('{');
+      const last  = raw.lastIndexOf('}');
+      if (first >= 0 && last > first) {
+        const slice = tryParse(raw.slice(first, last + 1));
+        if (slice !== undefined) return slice;
+      }
+
+      console.error('JSON parse failed, raw content:', raw);
+      throw new Error('התשובה אינה JSON תקין');
+    }
+
+    // --- text-mode fallback (stage 9) ---
+    // Used when gpt-4o-audio-preview is unavailable on the user's account.
+    // Flow: Whisper transcription → plain GPT-4o text analysis (tone unavailable).
+
+    function buildTextSystemPrompt(contextDescription) {
+      return `אתה מטפל קוגניטיבי-התנהגותי (CBT) מנוסה שמקבל **תמלול טקסטואלי** של אינטראקציה חברתית אמיתית שחווה המשתמש.
+סוג האינטראקציה: ${contextDescription}.
+המשתמש נוטה לביקורת עצמית קשה ולחרדה חברתית, ורוצה להבין אם הביקורת העצמית שהוא יחווה לאחר השיחה מוצדקת.
+התאם את הניתוח לסוג הקשר — ציפיות מאדם זר שונות מציפיות מבן משפחה.
+
+**חשוב: אתה מקבל תמלול בלבד — אין לך גישה לטון, קצב, שתיקות, או עוצמת הדוברים.** אל תמציא מידע על טון. אל תניח. התמקד במה שנאמר בפועל. בשדה "tone_analysis" כתוב במפורש שמדובר בתמלול בלבד ושניתוח טון אינו זמין במצב זה — ואז, אם אפשר, הערה זהירה על בחירת המילים (מתנצל, נוקשה, מתגונן) בלבד, ללא הסקה על הטון הקולי.
+
+**המשימה שלך:**
+1. לזהות מי המשתמש בשיחה (על פי ההקשר — הדובר שמקליט את עצמו, בדרך כלל מי שמדבר יותר או שמתחיל/מסיים).
+2. לנתח את **ההתנהגות המילולית שלו בפועל** — מה אמר, איך ניסח, מה לא אמר.
+3. לזהות עיוותים קוגניטיביים שעלולים להופיע בפרשנות שלו לשיחה.
+4. להעמיד תמונת מציאות עובדתית — מה באמת נאמר, מה הצד השני באמת אמר.
+5. לדבר בשפה לא שיפוטית, לא מטיפה, לא מעודדת-יתר. עובדתית ומדויקת.
+
+**עיוותים קוגניטיביים נפוצים לזהות:**
+- קריאת מחשבות (הנחה שיודעים מה אחרים חושבים)
+- הכללת יתר (מאירוע אחד → מסקנה כללית)
+- קטסטרופיזציה (הגזמה בחומרת תוצאות)
+- פילטר מנטלי (התמקדות רק בשלילי)
+- פסילה עצמית של החיובי (ביטול הצלחות)
+- הסקה שרירותית (מסקנות ללא ראיות)
+- הפרסונליזציה (לקיחת אחריות על דברים שאינם בשליטתי)
+- חשיבה דיכוטומית (הכול-או-כלום)
+- "צריך" ו"חייב" (ציפיות נוקשות מעצמי)
+- הגדלה/הקטנה (גודל לא פרופורציונלי לאירועים)
+
+ענה בפורמט JSON בדיוק כך:
+{
+  "summary": "תיאור קצר ועובדתי של מה שנאמר בשיחה (2-3 משפטים)",
+  "tone_analysis": "תמלול בלבד — ניתוח טון לא זמין במצב זה. [אופציונלי: הערה זהירה על בחירת מילים, בלי להסיק על טון קולי.]",
+  "distortions": [
+    {
+      "name": "שם העיוות",
+      "quote": "ציטוט או רגע ספציפי מהשיחה שממחיש את העיוות",
+      "explanation": "הסבר קצר מה העיוות כאן"
+    }
+  ],
+  "reality_check": "מה שבאמת נאמר בשיחה, בלי הפילטר הביקורתי. עובדות בלבד — מילים ותגובות מילוליות.",
+  "observations": [
+    "נקודת תשומת לב ראשונה — ניסוח לא שיפוטי",
+    "נקודת תשומת לב שנייה"
+  ]
+}
+
+אם לא נמצאו עיוותים או נקודות לתשומת לב — זה לגיטימי לחלוטין. אמור זאת בבהירות.`;
+    }
+
+    async function transcribe(wavBlob, apiKey) {
+      const fd = new FormData();
+      fd.append('file', wavBlob, 'audio.wav');
+      fd.append('model', OPENAI_WHISPER_MODEL);
+      fd.append('language', 'he');
+      fd.append('response_format', 'json');
+
+      const res = await fetch(OPENAI_TRANSCRIBE_URL, {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + apiKey },
+        // note: no Content-Type — browser sets it with the boundary
+        body: fd
+      });
+
+      let data;
+      try { data = await res.json(); } catch (_) { data = null; }
+
+      if (!res.ok) {
+        const err = new Error((data && data.error && data.error.message) || ('HTTP ' + res.status));
+        err.status = res.status;
+        err.code = data && data.error && data.error.code;
+        throw err;
+      }
+
+      const text = data && (data.text || '').trim();
+      if (!text) throw new Error('תמלול ריק');
+      return text;
+    }
+
+    async function analyzeText(transcript, contextColor, apiKey) {
+      const contextDescription = CONTEXT_LABELS[contextColor] || contextColor;
+
+      const body = {
+        model: OPENAI_TEXT_MODEL,
+        messages: [
+          { role: 'system', content: buildTextSystemPrompt(contextDescription) },
+          { role: 'user', content: 'הנה התמלול של האינטראקציה:\n\n' + transcript + '\n\nתנתח אותו לפי ההנחיות.' }
+        ],
+        response_format: { type: 'json_object' },
+        max_tokens: 2000
+      };
+
+      const res = await fetch(OPENAI_URL, {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + apiKey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(body)
+      });
+
+      let data;
+      try { data = await res.json(); } catch (_) { data = null; }
+
+      if (!res.ok) {
+        const err = new Error((data && data.error && data.error.message) || ('HTTP ' + res.status));
+        err.status = res.status;
+        err.code = data && data.error && data.error.code;
+        throw err;
+      }
+
+      const content = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+      if (!content) throw new Error('תשובה ריקה מה-API');
+      return parseJsonFlexible(content);
+    }
+
+    function isModelUnavailable(err) {
+      if (!err) return false;
+      if (err.code === 'model_not_found') return true;
+      if (err.status === 404) return true;
+      const msg = (err.message || '').toLowerCase();
+      // English + Hebrew error messages OpenAI returns for missing model access
+      if (/model/.test(msg) && /(not found|does not exist|unavailable|no access|not available)/.test(msg)) return true;
+      if (/audio/.test(msg) && /(not available|unsupported)/.test(msg)) return true;
+      return false;
+    }
+
+    async function analyzeWithFallback(wavBlob, contextColor, apiKey, onPhase) {
+      const emit = (p) => { try { onPhase && onPhase(p); } catch (_) {} };
+
+      emit('מנתח אודיו...');
+      try {
+        const analysis = await analyze(wavBlob, contextColor, apiKey);
+        return { analysis, mode: 'audio' };
+      } catch (err) {
+        if (!isModelUnavailable(err)) throw err;
+        console.warn('audio model unavailable, falling back to transcribe+text', err);
+      }
+
+      emit('מתמלל...');
+      const transcript = await transcribe(wavBlob, apiKey);
+
+      emit('מנתח טקסט...');
+      const analysis = await analyzeText(transcript, contextColor, apiKey);
+      return { analysis, mode: 'text', transcript };
+    }
+
+    function describeAnalysisError(err) {
+      const msg = (err && err.message) || '';
+      const code = err && err.code;
+      const status = err && err.status;
+
+      if (status === 401) return 'מפתח API לא תקין. עדכן בהגדרות';
+      if (status === 429) return 'חריגה מהמכסה. נסה שוב מאוחר יותר';
+      if (status === 404 || /model/i.test(msg) && /not\s+found|unavailable|does not exist/i.test(msg))
+        return 'מודל האודיו לא זמין. בדוק הגדרות חשבון OpenAI';
+      if (code === 'model_not_found') return 'מודל האודיו לא זמין. בדוק הגדרות חשבון OpenAI';
+      if (!navigator.onLine) return 'אין חיבור לאינטרנט';
+      return 'שגיאה בניתוח. בדוק חיבור אינטרנט ומפתח API';
+    }
+
+    // --- audio conversion (stage 4) ---
+    // GPT-4o Audio accepts only wav/mp3. MediaRecorder produces webm.
+    // Decode webm via WebAudio → re-encode as 16-bit PCM WAV.
+
+    function audioBufferToWav(buffer) {
+      const numChannels = buffer.numberOfChannels;
+      const sampleRate  = buffer.sampleRate;
+      const length      = buffer.length;
+      const bytesPerSample = 2; // 16-bit
+      const blockAlign = numChannels * bytesPerSample;
+      const byteRate   = sampleRate * blockAlign;
+      const dataSize   = length * blockAlign;
+      const ab = new ArrayBuffer(44 + dataSize);
+      const view = new DataView(ab);
+
+      const writeString = (offset, str) => {
+        for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+      };
+
+      writeString(0, 'RIFF');
+      view.setUint32(4, 36 + dataSize, true);
+      writeString(8, 'WAVE');
+      writeString(12, 'fmt ');
+      view.setUint32(16, 16, true);           // PCM chunk size
+      view.setUint16(20, 1, true);            // PCM format
+      view.setUint16(22, numChannels, true);
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, byteRate, true);
+      view.setUint16(32, blockAlign, true);
+      view.setUint16(34, 16, true);           // bits per sample
+      writeString(36, 'data');
+      view.setUint32(40, dataSize, true);
+
+      // interleave channels and write PCM
+      const channels = [];
+      for (let c = 0; c < numChannels; c++) channels.push(buffer.getChannelData(c));
+
+      let offset = 44;
+      for (let i = 0; i < length; i++) {
+        for (let c = 0; c < numChannels; c++) {
+          let sample = Math.max(-1, Math.min(1, channels[c][i]));
+          sample = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+          view.setInt16(offset, sample, true);
+          offset += 2;
+        }
+      }
+
+      return ab;
+    }
+
+    // Decode any audio blob (webm, m4a, mp3, ogg, wav, ...) → WAV + duration.
+    // Works for both live recordings and uploaded files.
+    async function decodeToWav(audioBlob) {
+      const arrayBuffer = await audioBlob.arrayBuffer();
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) throw new Error('WebAudio not supported');
+      const ctx = new AC();
+      try {
+        const audioBuffer = await new Promise((resolve, reject) => {
+          try {
+            const p = ctx.decodeAudioData(arrayBuffer, resolve, reject);
+            if (p && typeof p.then === 'function') p.then(resolve, reject);
+          } catch (e) { reject(e); }
+        });
+        const wavAb = audioBufferToWav(audioBuffer);
+        return {
+          wavBlob: new Blob([wavAb], { type: 'audio/wav' }),
+          durationSec: audioBuffer.duration
+        };
+      } finally {
+        try { ctx.close(); } catch (_) {}
+      }
+    }
+
+    function blobToBase64(blob) {
+      return new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onloadend = () => {
+          const s = r.result;
+          const comma = typeof s === 'string' ? s.indexOf(',') : -1;
+          resolve(comma >= 0 ? s.slice(comma + 1) : s);
+        };
+        r.onerror = reject;
+        r.readAsDataURL(blob);
+      });
+    }
+
+    // --- latest analysis state ---
+    // stage 6 will read from here to render the results screen nicely
+    let latestAnalysis = null; // { id, date, duration, context, analysis }
+
+    // Unified processor — used by both live recordings and file uploads.
+    // meta: { source: 'recording' | 'upload', duration?: seconds }
+    async function processAudio(sourceBlob, contextColor, meta) {
+      meta = meta || {};
+      console.log('processing audio', {
+        size: sourceBlob.size, type: sourceBlob.type, context: contextColor, source: meta.source
+      });
+
+      const apiKey = getApiKey();
+      if (!apiKey) {
+        alert('יש להזין מפתח OpenAI בהגדרות');
+        navigate('settings');
+        return;
+      }
+
+      setProcessingStatus('ממיר אודיו...');
+      let wavBlob, durationSec;
+      try {
+        const decoded = await decodeToWav(sourceBlob);
+        wavBlob = decoded.wavBlob;
+        durationSec = decoded.durationSec;
+      } catch (err) {
+        console.error('decode failed', err);
+        alert(meta.source === 'upload'
+          ? 'לא ניתן לפענח את קובץ האודיו. נסה פורמט אחר'
+          : 'שגיאה בעיבוד ההקלטה. נסה שנית');
+        navigate('home');
+        return;
+      }
+
+      if (wavBlob.size > MAX_UPLOAD_BYTES) {
+        alert(meta.source === 'upload'
+          ? 'הקובץ גדול מדי אחרי המרה ל-WAV. מקסימום 10 דקות'
+          : 'ההקלטה ארוכה מדי. מקסימום 10 דקות');
+        navigate('home');
+        return;
+      }
+
+      if (!navigator.onLine) {
+        alert('אין חיבור לאינטרנט');
+        navigate('home');
+        return;
+      }
+
+      let result;
+      try {
+        result = await analyzeWithFallback(wavBlob, contextColor, apiKey, setProcessingStatus);
+      } catch (err) {
+        console.error('analyze failed', err);
+        alert(describeAnalysisError(err));
+        navigate('home');
+        return;
+      }
+
+      const finalDuration = meta.duration != null ? meta.duration : Math.round(durationSec || 0);
+
+      latestAnalysis = {
+        id: (crypto.randomUUID && crypto.randomUUID()) || String(Date.now()),
+        date: new Date().toISOString(),
+        duration: finalDuration,
+        context: contextColor,
+        source: meta.source || 'recording',
+        mode: result.mode, // 'audio' | 'text'
+        analysis: result.analysis
+      };
+
+      renderResults(latestAnalysis);
+      navigate('results');
+    }
+
+    // kept for the recorder's onstop callback wiring
+    function processRecording(webmBlob, contextColor) {
+      processAudio(webmBlob, contextColor, {
+        source: 'recording',
+        duration: Math.round(recordDurationMs / 1000)
+      });
+    }
+
+    // --- results rendering ---
+    const CTX_LABEL_SHORT = { red: 'זר', green: 'מוכר', blue: 'משפחה' };
+
+    function formatDateHe(iso) {
+      try {
+        const d = new Date(iso);
+        const date = d.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        const time = d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+        return date + ' · ' + time;
+      } catch (_) {
+        return iso || '';
+      }
+    }
+
+    function makeEl(tag, opts) {
+      const el = document.createElement(tag);
+      if (!opts) return el;
+      if (opts.className) el.className = opts.className;
+      if (opts.text != null) el.textContent = opts.text;
+      if (opts.attrs) for (const k in opts.attrs) el.setAttribute(k, opts.attrs[k]);
+      return el;
+    }
+
+    function renderResults(item) {
+      const a = item.analysis || {};
+      const ctx = item.context;
+      const ctxClass = ctx ? 'ctx-' + ctx : '';
+
+      // header meta
+      const dot = document.getElementById('result-ctx-dot');
+      dot.className = 'ctx-dot ' + ctxClass;
+      document.getElementById('result-ctx-label').textContent = CTX_LABEL_SHORT[ctx] || '';
+      document.getElementById('result-date').textContent = formatDateHe(item.date);
+      document.getElementById('result-mode-badge').hidden = item.mode !== 'text';
+
+      // simple text sections
+      document.getElementById('result-summary').textContent = a.summary || '—';
+      document.getElementById('result-tone').textContent = a.tone_analysis || '—';
+      document.getElementById('result-reality').textContent = a.reality_check || '—';
+
+      // distortions
+      const distEl = document.getElementById('result-distortions');
+      distEl.replaceChildren();
+      const dist = Array.isArray(a.distortions) ? a.distortions : [];
+      if (dist.length === 0) {
+        const empty = makeEl('div', { className: 'card empty-note', text: 'לא זוהו עיוותים קוגניטיביים.' });
+        distEl.appendChild(empty);
+      } else {
+        for (const d of dist) {
+          const card = makeEl('div', { className: 'distortion-card ' + ctxClass });
+          card.appendChild(makeEl('div', { className: 'distortion-name', text: d.name || '' }));
+          if (d.quote) card.appendChild(makeEl('div', { className: 'distortion-quote', text: '« ' + d.quote + ' »' }));
+          if (d.explanation) card.appendChild(makeEl('div', { className: 'distortion-explanation', text: d.explanation }));
+          distEl.appendChild(card);
+        }
+      }
+
+      // observations
+      const obsEl = document.getElementById('result-observations');
+      obsEl.replaceChildren();
+      const obs = Array.isArray(a.observations) ? a.observations : [];
+      if (obs.length === 0) {
+        obsEl.appendChild(makeEl('div', { className: 'empty-note', text: 'אין נקודות לתשומת לב.' }));
+      } else {
+        const ul = makeEl('ul', { className: 'obs-list' });
+        for (const o of obs) ul.appendChild(makeEl('li', { text: o }));
+        obsEl.appendChild(ul);
+      }
+
+      // save button: enabled only when this item isn't already saved
+      const saveBtn = document.getElementById('btn-save-result');
+      const alreadySaved = getAnalyses().some(x => x.id === item.id);
+      saveBtn.disabled = alreadySaved;
+      saveBtn.textContent = alreadySaved ? 'נשמר' : 'שמור';
+    }
+
+    // --- history ---
+    function renderHistory() {
+      const listEl = document.getElementById('history-list');
+      listEl.replaceChildren();
+
+      const items = getAnalyses();
+      for (const item of items) {
+        const li = makeEl('li', { className: 'history-item' });
+
+        const main = makeEl('div', { className: 'history-main' });
+        main.appendChild(makeEl('span', { className: 'ctx-dot ctx-' + item.context }));
+
+        const info = makeEl('div', { className: 'history-info' });
+        info.appendChild(makeEl('div', { className: 'history-date', text: formatDateHe(item.date) }));
+
+        const distCount = Array.isArray(item.analysis && item.analysis.distortions)
+          ? item.analysis.distortions.length : 0;
+        const parts = [CTX_LABEL_SHORT[item.context] || ''];
+        if (item.duration) parts.push(fmtTime(item.duration * 1000));
+        parts.push(distCount === 0 ? 'ללא עיוותים' : distCount + ' עיוותים');
+
+        const metaRow = makeEl('div', { className: 'history-meta' });
+        metaRow.textContent = parts.filter(Boolean).join(' · ');
+        if (item.mode === 'text') {
+          metaRow.appendChild(makeEl('span', { className: 'mode-badge', text: 'תמלול' }));
+        }
+        info.appendChild(metaRow);
+
+        main.appendChild(info);
+        main.addEventListener('click', () => viewAnalysisFromHistory(item.id));
+        li.appendChild(main);
+
+        const del = makeEl('button', { className: 'history-delete', attrs: { 'aria-label': 'מחק' } });
+        del.textContent = '×';
+        del.addEventListener('click', e => {
+          e.stopPropagation();
+          if (confirm('למחוק את הניתוח?')) {
+            deleteAnalysis(item.id);
+            renderHistory();
+          }
+        });
+        li.appendChild(del);
+
+        listEl.appendChild(li);
+      }
+    }
+
+    function viewAnalysisFromHistory(id) {
+      const item = getAnalyses().find(x => x.id === id);
+      if (!item) return;
+      latestAnalysis = item;
+      renderResults(item);
+      navigate('results');
+    }
+
+    // context buttons — start recording with the chosen context
+    ['red', 'green', 'blue'].forEach(color => {
+      document.getElementById('btn-' + color).addEventListener('click', () => startRecording(color));
+    });
+
+    // menu "סיים הקלטה"
+    document.getElementById('menu-stop').addEventListener('click', stopRecording);
+
+    // --- upload flow ---
+    const fileInput = document.getElementById('file-input');
+    const uploadSheet = document.getElementById('upload-sheet');
+    let pendingUpload = null; // File
+
+    function openUploadSheet(file) {
+      pendingUpload = file;
+      document.getElementById('upload-filename').textContent = file.name;
+      uploadSheet.classList.add('open');
+      backdrop.style.opacity = '1';
+      backdrop.style.pointerEvents = 'auto';
+    }
+
+    function closeUploadSheet() {
+      uploadSheet.classList.remove('open');
+      backdrop.style.opacity = '0';
+      backdrop.style.pointerEvents = 'none';
+      pendingUpload = null;
+      // reset so same file can be picked again
+      fileInput.value = '';
+    }
+
+    document.getElementById('menu-upload').addEventListener('click', () => {
+      closeMenu();
+      fileInput.click();
+    });
+
+    fileInput.addEventListener('change', () => {
+      const file = fileInput.files && fileInput.files[0];
+      if (!file) return;
+
+      if (file.size > MAX_UPLOAD_BYTES) {
+        alert('הקובץ גדול מדי. מקסימום ' + Math.round(MAX_UPLOAD_BYTES / 1024 / 1024) + 'MB');
+        fileInput.value = '';
+        return;
+      }
+
+      openUploadSheet(file);
+    });
+
+    document.getElementById('upload-cancel').addEventListener('click', closeUploadSheet);
+
+    document.querySelectorAll('[data-upload-ctx]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const color = btn.getAttribute('data-upload-ctx');
+        const file = pendingUpload;
+        closeUploadSheet();
+        if (!file) return;
+        setProcessingStatus('מעבד...');
+        navigate('processing');
+        processAudio(file, color, { source: 'upload' });
+      });
+    });
+
+    // backdrop should also close the upload sheet
+    backdrop.addEventListener('click', closeUploadSheet);
+
+    // --- deep-link: ?start=red|green|blue → auto-start recording ---
+    // used by PWA manifest shortcuts (home-screen icons per context)
+    (function handleStartParam() {
+      const params = new URLSearchParams(location.search);
+      const start = params.get('start');
+      if (!start) return;
+      if (!['red', 'green', 'blue'].includes(start)) return;
+
+      // clean the URL so refresh/re-share doesn't retrigger
+      params.delete('start');
+      const rest = params.toString();
+      const clean = location.pathname + (rest ? '?' + rest : '') + location.hash;
+      try { history.replaceState(null, '', clean); } catch (_) {}
+
+      // wait a tick so DOM + service worker are settled; startRecording
+      // itself checks API key and handles the settings redirect
+      setTimeout(() => {
+        if (!isRecording()) startRecording(start);
+      }, 120);
+    })();
+  </script>
+
+</body>
+</html>
