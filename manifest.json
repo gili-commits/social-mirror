@@ -11,9 +11,9 @@
   "lang": "he",
   "dir": "rtl",
   "icons": [
-    { "src": "icon.svg",      "sizes": "any",     "type": "image/svg+xml", "purpose": "any" },
-    { "src": "icon-192.png",  "sizes": "192x192", "type": "image/png" },
-    { "src": "icon-512.png",  "sizes": "512x512", "type": "image/png" }
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon.svg",     "sizes": "any",     "type": "image/svg+xml", "purpose": "any" }
   ],
   "shortcuts": [
     {
@@ -21,21 +21,30 @@
       "short_name": "זר",
       "description": "הקלטה מהירה — אינטראקציה עם זר",
       "url": "./?start=red",
-      "icons": [{ "src": "icon-red.svg",   "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+      "icons": [
+        { "src": "icon-red-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+        { "src": "icon-red-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+      ]
     },
     {
       "name": "הקלטה — מוכר",
       "short_name": "מוכר",
       "description": "הקלטה מהירה — חבר / אדם מוכר",
       "url": "./?start=green",
-      "icons": [{ "src": "icon-green.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+      "icons": [
+        { "src": "icon-green-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+        { "src": "icon-green-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+      ]
     },
     {
       "name": "הקלטה — משפחה",
       "short_name": "משפחה",
       "description": "הקלטה מהירה — בן משפחה",
       "url": "./?start=blue",
-      "icons": [{ "src": "icon-blue.svg",  "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+      "icons": [
+        { "src": "icon-blue-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+        { "src": "icon-blue-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+      ]
     }
   ]
 }

@@ -1,12 +1,13 @@
-const CACHE = 'social-mirror-v3';
+const CACHE = 'social-mirror-v4';
 const ASSETS = [
   './',
   './index.html',
   './manifest.json',
-  './icon.svg',
-  './icon-red.svg',
-  './icon-green.svg',
-  './icon-blue.svg'
+  './icon-192.png',
+  './icon-512.png',
+  './icon-red-192.png',
+  './icon-green-192.png',
+  './icon-blue-192.png'
 ];
 
 self.addEventListener('install', e => {
