@@ -1,4 +1,4 @@
-const CACHE = 'social-mirror-v6';
+const CACHE = 'social-mirror-v7';
 const ASSETS = [
   './',
   './index.html',
@@ -7,7 +7,8 @@ const ASSETS = [
   './icon-512.png',
   './icon-red-192.png',
   './icon-green-192.png',
-  './icon-blue-192.png'
+  './icon-blue-192.png',
+  './silent.wav',
 ];
 
 self.addEventListener('install', e => {

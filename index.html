@@ -538,6 +538,8 @@
   <section id="screen-home" class="screen active">
     <button id="btn-settings-icon" class="settings-icon" aria-label="הגדרות">⚙</button>
 
+    <audio id="silent-audio" loop preload="auto" hidden></audio>
+
     <div id="recording-indicator" hidden aria-live="polite">
       <div class="rec-dot" aria-hidden="true"></div>
       <div class="rec-label">מקליט</div>
@@ -894,6 +896,23 @@
       recordStartTs = Date.now();
 
       rec.start();
+      // Keep recording alive in background via silent media playback
+      try {
+        const silent = document.getElementById('silent-audio');
+        if (silent) {
+          silent.src = 'silent.wav';
+          silent.volume = 0.01;
+          silent.play().catch(e => console.warn('silent audio blocked:', e));
+        }
+        if ('mediaSession' in navigator) {
+          navigator.mediaSession.metadata = new MediaMetadata({
+            title: 'הקלטה פעילה',
+            artist: 'Social Mirror'
+          });
+          navigator.mediaSession.playbackState = 'playing';
+        }
+      } catch (e) { console.warn('background keepalive failed:', e); }
+
       vibrate(50);
       acquireWakeLock();
 
@@ -918,7 +937,17 @@
       navigate('processing');
     }
 
-    function cleanupRecording() {
+    function cleanupRecording() {      // stop background keepalive
+      try {
+        const silent = document.getElementById('silent-audio');
+        if (silent) { silent.pause(); silent.currentTime = 0; silent.removeAttribute('src'); silent.load(); }
+        if ('mediaSession' in navigator) {
+          navigator.mediaSession.playbackState = 'none';
+          navigator.mediaSession.metadata = null;
+        }
+      } catch (_) {}
+
+
       clearInterval(recordTimerInt);
       recordTimerInt = null;
       clearTimeout(recordMaxTimeout);
