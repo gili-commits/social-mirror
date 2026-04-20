@@ -1,4 +1,4 @@
-const CACHE = 'social-mirror-v12';
+const CACHE = 'social-mirror-v13';
 const ASSETS = [
   './',
   './index.html',
