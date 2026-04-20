@@ -73,6 +73,14 @@
       margin-bottom: 12px;
     }
 
+        .audio-card {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      align-items: stretch;
+    }
+    .audio-card audio { width: 100%; }
+
         .transcript-card {
       white-space: pre-wrap;
       font-size: 14px;
@@ -640,6 +648,14 @@
       <span id="result-mode-badge" class="mode-badge" hidden>תמלול</span>
     </div>
 
+    <div class="result-section" id="result-audio-section" hidden>
+      <h2>הקלטה מקורית</h2>
+      <div class="card audio-card">
+        <audio id="result-audio" controls preload="metadata"></audio>
+        <button id="btn-download-audio" class="secondary-btn">הורד קובץ</button>
+      </div>
+    </div>
+
     <div class="result-section" id="result-transcript-section" hidden>
       <h2>תמלול</h2>
       <div class="card transcript-card" id="result-transcript"></div>
@@ -755,9 +771,12 @@
       }
     }
     function saveAnalysis(item) {
+      // strip in-memory blob before persisting (localStorage can't hold blobs)
+      const persistable = Object.assign({}, item);
+      delete persistable._audioBlob;
       const arr = getAnalyses();
-      const filtered = arr.filter(x => x.id !== item.id);
-      filtered.unshift(item); // newest first
+      const filtered = arr.filter(x => x.id !== persistable.id);
+      filtered.unshift(persistable); // newest first
       return setAnalyses(filtered);
     }
     function deleteAnalysis(id) {
@@ -1488,7 +1507,8 @@
         source: meta.source || 'recording',
         mode: result.mode, // 'audio' | 'text'
         transcript: result.transcript || (result.analysis && result.analysis.transcript) || '',
-        analysis: result.analysis
+        analysis: result.analysis,
+        _audioBlob: wavBlob // in-memory only, not persisted to history
       };
 
       renderResults(latestAnalysis);
@@ -1537,6 +1557,34 @@
       document.getElementById('result-ctx-label').textContent = CTX_LABEL_SHORT[ctx] || '';
       document.getElementById('result-date').textContent = formatDateHe(item.date);
       document.getElementById('result-mode-badge').hidden = item.mode !== 'text';
+
+      // audio playback section (only when blob is in memory — current session)
+      const audioSec = document.getElementById('result-audio-section');
+      const audioEl  = document.getElementById('result-audio');
+      const dlBtn    = document.getElementById('btn-download-audio');
+      // revoke previous object URL if any
+      if (audioEl.dataset.objUrl) {
+        try { URL.revokeObjectURL(audioEl.dataset.objUrl); } catch (_) {}
+        audioEl.removeAttribute('src');
+        audioEl.dataset.objUrl = '';
+      }
+      if (item._audioBlob) {
+        const url = URL.createObjectURL(item._audioBlob);
+        audioEl.src = url;
+        audioEl.dataset.objUrl = url;
+        audioSec.hidden = false;
+        dlBtn.onclick = () => {
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'social-mirror-' + (item.id || Date.now()) + '.wav';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+        };
+      } else {
+        audioSec.hidden = true;
+        dlBtn.onclick = null;
+      }
 
       // transcript section (shown only if available)
       const tx = (item.transcript && item.transcript.trim()) || (a.transcript && a.transcript.trim()) || '';
