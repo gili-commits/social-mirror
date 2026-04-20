@@ -73,6 +73,15 @@
       margin-bottom: 12px;
     }
 
+        .transcript-card {
+      white-space: pre-wrap;
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--text-dim);
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
     /* settings icon — top-right in RTL (DOM uses "left" because RTL flips) */
     .settings-icon {
       position: fixed;
@@ -631,6 +640,11 @@
       <span id="result-mode-badge" class="mode-badge" hidden>תמלול</span>
     </div>
 
+    <div class="result-section" id="result-transcript-section" hidden>
+      <h2>תמלול</h2>
+      <div class="card transcript-card" id="result-transcript"></div>
+    </div>
+
     <div class="result-section">
       <h2>סיכום</h2>
       <div class="card" id="result-summary"></div>
@@ -1058,6 +1072,7 @@
 
 ענה בפורמט JSON בדיוק כך:
 {
+  "transcript": "תמלול מלא של כל המילים שנאמרו בשיחה — שני הדוברים, סדר כרונולוגי, בלי פרשנות. אם לא בטוח במילה — ציין [לא ברור]",
   "summary": "תיאור קצר ועובדתי של מה שקרה בשיחה (2-3 משפטים)",
   "tone_analysis": "תיאור הטון, הקצב, העוצמה, השתיקות של המשתמש — ואיך הצד השני הגיב לזה",
   "distortions": [
@@ -1472,6 +1487,7 @@
         context: contextColor,
         source: meta.source || 'recording',
         mode: result.mode, // 'audio' | 'text'
+        transcript: result.transcript || (result.analysis && result.analysis.transcript) || '',
         analysis: result.analysis
       };
 
@@ -1521,6 +1537,16 @@
       document.getElementById('result-ctx-label').textContent = CTX_LABEL_SHORT[ctx] || '';
       document.getElementById('result-date').textContent = formatDateHe(item.date);
       document.getElementById('result-mode-badge').hidden = item.mode !== 'text';
+
+      // transcript section (shown only if available)
+      const tx = (item.transcript && item.transcript.trim()) || (a.transcript && a.transcript.trim()) || '';
+      const txSection = document.getElementById('result-transcript-section');
+      if (tx) {
+        document.getElementById('result-transcript').textContent = tx;
+        txSection.hidden = false;
+      } else {
+        txSection.hidden = true;
+      }
 
       // simple text sections
       document.getElementById('result-summary').textContent = a.summary || '—';
