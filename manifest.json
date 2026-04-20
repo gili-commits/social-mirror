@@ -32,8 +32,8 @@
   ],
   "shortcuts": [
     {
-      "name": "⠀",
-      "short_name": "⠀",
+      "name": "ㅤ",
+      "short_name": "ㅤ",
       "description": "הקלטה מהירה — אינטראקציה עם זר",
       "url": "./?start=red",
       "icons": [
@@ -52,8 +52,8 @@
       ]
     },
     {
-      "name": "⠀",
-      "short_name": "⠀",
+      "name": "ㅤ",
+      "short_name": "ㅤ",
       "description": "הקלטה מהירה — חבר / אדם מוכר",
       "url": "./?start=green",
       "icons": [
@@ -72,8 +72,8 @@
       ]
     },
     {
-      "name": "⠀",
-      "short_name": "⠀",
+      "name": "ㅤ",
+      "short_name": "ㅤ",
       "description": "הקלטה מהירה — בן משפחה",
       "url": "./?start=blue",
       "icons": [
