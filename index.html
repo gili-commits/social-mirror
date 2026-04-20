@@ -1578,7 +1578,14 @@
 
     // context buttons — start recording with the chosen context
     ['red', 'green', 'blue'].forEach(color => {
-      document.getElementById('btn-' + color).addEventListener('click', () => startRecording(color));
+            document.getElementById('btn-' + color).addEventListener('click', () => {
+        if (isRecording()) {
+          stopRecording();
+        } else {
+          startRecording(color);
+        }
+      });
+
     });
 
     // menu "סיים הקלטה"
