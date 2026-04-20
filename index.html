@@ -139,6 +139,36 @@
     }
 
     /* consent-visible recording indicator (stage 3) */
+    
+    /* tap-to-start overlay for shortcut launches */
+    #start-overlay[hidden] { display: none; }
+    #start-overlay {
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 24px;
+    }
+    #start-overlay-btn {
+      width: 180px;
+      height: 180px;
+      border-radius: 50%;
+      transition: transform 0.1s;
+    }
+    #start-overlay-btn:active { transform: scale(0.95); }
+    #start-overlay.red    #start-overlay-btn { background: var(--ctx-red); }
+    #start-overlay.green  #start-overlay-btn { background: var(--ctx-green); }
+    #start-overlay.blue   #start-overlay-btn { background: var(--ctx-blue); }
+    .start-overlay-text {
+      color: var(--text);
+      font-size: 18px;
+      font-weight: 500;
+    }
+
     #recording-indicator[hidden] { display: none; }
     #recording-indicator {
       display: flex;
@@ -543,6 +573,11 @@
     <button id="btn-settings-icon" class="settings-icon" aria-label="הגדרות">⚙</button>
 
     <audio id="silent-audio" loop preload="auto" hidden></audio>
+    <div id="start-overlay" hidden>
+      <button id="start-overlay-btn" aria-label="התחל הקלטה"></button>
+      <div class="start-overlay-text">הקש להתחלת הקלטה</div>
+    </div>
+
 
     <div id="recording-indicator" hidden aria-live="polite">
       <div class="rec-dot" aria-hidden="true"></div>
@@ -1653,43 +1688,33 @@
 
     // --- deep-link: ?start=red|green|blue → auto-start recording ---
     // used by PWA manifest shortcuts (home-screen icons per context)
-    (function handleStartParam() {
+        (function handleStartParam() {
       const params = new URLSearchParams(location.search);
       const start = params.get('start');
       if (!start) return;
       if (!['red', 'green', 'blue'].includes(start)) return;
 
-      // clean the URL so refresh/re-share doesn't retrigger
       params.delete('start');
       const rest = params.toString();
       const clean = location.pathname + (rest ? '?' + rest : '') + location.hash;
       try { history.replaceState(null, '', clean); } catch (_) {}
 
-      // prime the silent audio BEFORE setTimeout to preserve user activation
-      // from the shortcut tap — needed for autoplay policy on Android
-      try {
-        const silentEl = document.getElementById('silent-audio');
-        if (silentEl) {
-          silentEl.src = 'silent.wav';
-          silentEl.volume = 0.01;
-          silentEl.play().catch(() => {});
-        }
-        if ('mediaSession' in navigator) {
-          navigator.mediaSession.metadata = new MediaMetadata({
-            title: 'הקלטה פעילה',
-            artist: 'Social Mirror'
-          });
-          navigator.mediaSession.playbackState = 'playing';
-        }
-      } catch (_) {}
+      // show tap-to-start overlay — required to get user gesture for
+      // autoplay policy + background keepalive to work reliably
+      const overlay = document.getElementById('start-overlay');
+      const btn = document.getElementById('start-overlay-btn');
+      if (!overlay || !btn) return;
 
+      overlay.classList.remove('red', 'green', 'blue');
+      overlay.classList.add(start);
+      overlay.hidden = false;
 
-      // wait a tick so DOM + service worker are settled; startRecording
-      // itself checks API key and handles the settings redirect
-      setTimeout(() => {
+      btn.addEventListener('click', () => {
+        overlay.hidden = true;
         if (!isRecording()) startRecording(start);
-      }, 120);
+      }, { once: true });
     })();
+
   </script>
 
 </body>
