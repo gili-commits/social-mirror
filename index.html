@@ -1665,6 +1665,25 @@
       const clean = location.pathname + (rest ? '?' + rest : '') + location.hash;
       try { history.replaceState(null, '', clean); } catch (_) {}
 
+      // prime the silent audio BEFORE setTimeout to preserve user activation
+      // from the shortcut tap — needed for autoplay policy on Android
+      try {
+        const silentEl = document.getElementById('silent-audio');
+        if (silentEl) {
+          silentEl.src = 'silent.wav';
+          silentEl.volume = 0.01;
+          silentEl.play().catch(() => {});
+        }
+        if ('mediaSession' in navigator) {
+          navigator.mediaSession.metadata = new MediaMetadata({
+            title: 'הקלטה פעילה',
+            artist: 'Social Mirror'
+          });
+          navigator.mediaSession.playbackState = 'playing';
+        }
+      } catch (_) {}
+
+
       // wait a tick so DOM + service worker are settled; startRecording
       // itself checks API key and handles the settings redirect
       setTimeout(() => {
