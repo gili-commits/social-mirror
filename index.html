@@ -941,7 +941,7 @@
         const silent = document.getElementById('silent-audio');
         if (silent) {
           silent.src = 'silent.wav';
-          silent.volume = 0.01;
+          silent.volume = 0.1;
           silent.play().catch(e => console.warn('silent audio blocked:', e));
         }
         if ('mediaSession' in navigator) {
@@ -950,7 +950,9 @@
             artist: 'Social Mirror'
           });
           navigator.mediaSession.playbackState = 'playing';
-        }
+        navigator.mediaSession.setActionHandler('play', () => {});
+            navigator.mediaSession.setActionHandler('pause', () => { if (isRecording()) stopRecording(); });
+            navigator.mediaSession.setActionHandler('stop', () => { if (isRecording()) stopRecording(); });}
       } catch (e) { console.warn('background keepalive failed:', e); }
 
       vibrate(50);
@@ -1719,7 +1721,7 @@
           const silent = document.getElementById('silent-audio');
           if (silent) {
             silent.src = 'silent.wav';
-            silent.volume = 0.01;
+            silent.volume = 0.1;
             silent.play().catch(() => {});
           }
           if ('mediaSession' in navigator) {
@@ -1728,7 +1730,9 @@
               artist: 'Social Mirror'
             });
             navigator.mediaSession.playbackState = 'playing';
-          }
+          navigator.mediaSession.setActionHandler('play', () => {});
+            navigator.mediaSession.setActionHandler('pause', () => { if (isRecording()) stopRecording(); });
+            navigator.mediaSession.setActionHandler('stop', () => { if (isRecording()) stopRecording(); });}
         } catch (_) {}
 
         if (!isRecording()) startRecording(start);
