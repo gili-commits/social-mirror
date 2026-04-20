@@ -1709,10 +1709,30 @@
       overlay.classList.add(start);
       overlay.hidden = false;
 
-      btn.addEventListener('click', () => {
+            btn.addEventListener('click', () => {
         overlay.hidden = true;
+
+        // start silent audio + media session NOW with fresh user activation
+        // (before getUserMedia await consumes the gesture)
+        try {
+          const silent = document.getElementById('silent-audio');
+          if (silent) {
+            silent.src = 'silent.wav';
+            silent.volume = 0.01;
+            silent.play().catch(() => {});
+          }
+          if ('mediaSession' in navigator) {
+            navigator.mediaSession.metadata = new MediaMetadata({
+              title: 'הקלטה פעילה',
+              artist: 'Social Mirror'
+            });
+            navigator.mediaSession.playbackState = 'playing';
+          }
+        } catch (_) {}
+
         if (!isRecording()) startRecording(start);
       }, { once: true });
+
     })();
 
   </script>
