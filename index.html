@@ -146,6 +146,10 @@
       align-items: center;
       gap: 16px;
       margin-bottom: 32px;
+      cursor: pointer;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+
     }
     .rec-dot {
       width: 28px;
@@ -1577,19 +1581,18 @@
     }
 
     // context buttons — start recording with the chosen context
-    ['red', 'green', 'blue'].forEach(color => {
-            document.getElementById('btn-' + color).addEventListener('click', () => {
-        if (isRecording()) {
-          stopRecording();
-        } else {
-          startRecording(color);
-        }
-      });
-
+        ['red', 'green', 'blue'].forEach(color => {
+      document.getElementById('btn-' + color).addEventListener('click', () => startRecording(color));
     });
 
     // menu "סיים הקלטה"
     document.getElementById('menu-stop').addEventListener('click', stopRecording);
+
+    // tap recording indicator to stop
+    document.getElementById('recording-indicator').addEventListener('click', () => {
+      if (isRecording()) stopRecording();
+    });
+
 
     // --- upload flow ---
     const fileInput = document.getElementById('file-input');
