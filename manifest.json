@@ -18,7 +18,8 @@
   "shortcuts": [
     {
       "name": "הקלטה — זר",
-      "short_name": "זר",
+      "short_name": " ",
+
       "description": "הקלטה מהירה — אינטראקציה עם זר",
       "url": "./?start=red",
       "icons": [
@@ -28,7 +29,8 @@
     },
     {
       "name": "הקלטה — מוכר",
-      "short_name": "מוכר",
+      "short_name": " ",
+
       "description": "הקלטה מהירה — חבר / אדם מוכר",
       "url": "./?start=green",
       "icons": [
@@ -38,7 +40,8 @@
     },
     {
       "name": "הקלטה — משפחה",
-      "short_name": "משפחה",
+      "short_name": " ",
+
       "description": "הקלטה מהירה — בן משפחה",
       "url": "./?start=blue",
       "icons": [
